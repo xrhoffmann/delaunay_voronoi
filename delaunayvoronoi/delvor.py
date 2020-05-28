@@ -3,6 +3,8 @@
 2020, Xavier R. Hoffmann <xrhoffmann@gmail.com>
 """
 
+from collections import Counter
+
 import numpy as np
 
 
@@ -93,6 +95,12 @@ class DelVor:
         )
         return (x0, y0), radius
 
+    @staticmethod
+    def euclidean_distance(p1, p2):
+        """Compute Euclidean distance between two points."""
+        d = (p1[0] - p2[0]) ** 2 + (p2[1] - p1[1]) ** 2
+        return np.sqrt(d)
+
     def compute_delaunay(self):
         # TODO document
         """Delaunay triangulation."""
@@ -104,7 +112,7 @@ class DelVor:
 
             # make supertriangle
             self._make_supertriangle()
-            _super_vertices = self._vertices.keys()
+            super_vertices = self._vertices.keys()
 
             # add first vertex
             self._vertices[0] = self.coord[0]
@@ -113,9 +121,35 @@ class DelVor:
                 self._triangles[tr] = self._circumference(tr)
 
             # iterate over all vertices
+            for i, vertex_coord in enumerate(self.coord[1:]):
+                vertex_id = i + 1
+                self._vertices[vertex_id] = vertex_coord
+                # find bad triangles
+                bad_triangles = []
+                edges = []
+                # TODO optimize with numpy vectoritzation?
+                for triangle, circum in self._triangles.items():
+                    dist = self.euclidean_distance(self._vertices[vertex_id], circum[0])
+                    if dist < circum[1]:
+                        bad_triangles.append(triangle)
+                        edges += [
+                            (triangle[i], triangle[j])
+                            for i, j in [(0, 1), (0, 2), (1, 2)]
+                        ]
+                # remove bad triangles
+                for triangle in bad_triangles:
+                    del self._triangles[triangle]
+                # add new triangles
+                new_triangles = [
+                    (edge[0], edge[1], vertex_id)
+                    for edge, count in Counter(edges).items()
+                    if count == 1
+                ]
+                for triangle in new_triangles:
+                    self._triangles[triangle] = self._circumference(triangle)
 
             # remove super vertices
-            for vertex in _super_vertices:
+            for vertex in super_vertices:
                 pass
 
         return self.triangulation
