@@ -72,6 +72,7 @@ class DelVor:
         return px, py, dx, dy
 
     def _circumference(self, triangle):
+        """Compute circumcircle of a triangle."""
         line1 = self._bisector(v1=triangle[0], v2=triangle[1])
         line2 = self._bisector(v1=triangle[0], v2=triangle[2])
         if line1[2] == 0:
@@ -112,7 +113,7 @@ class DelVor:
 
             # make supertriangle
             self._make_supertriangle()
-            super_vertices = self._vertices.keys()
+            super_vertices = tuple(self._vertices.keys())
 
             # add first vertex
             self._vertices[0] = self.coord[0]
@@ -150,7 +151,18 @@ class DelVor:
 
             # remove super vertices
             for vertex in super_vertices:
-                pass
+                del self._vertices[vertex]
+            # remove bad triangles (including super vertices)
+            bad_triangles = [
+                triangle
+                for triangle in self._triangles
+                if any(vertex in super_vertices for vertex in triangle)
+            ]
+            for triangle in bad_triangles:
+                del self._triangles[triangle]
+
+            # assign triangulation
+            self.triangulation = self._vertices, tuple(self._triangles.keys())
 
         return self.triangulation
 
