@@ -129,9 +129,11 @@ class DelVor:
                 bad_triangles = []
                 edges = []
                 # TODO optimize with numpy vectoritzation?
-                for triangle, circum in self._triangles.items():
-                    dist = self.euclidean_distance(self._vertices[vertex_id], circum[0])
-                    if dist < circum[1]:
+                for triangle, circumcircle in self._triangles.items():
+                    dist = self.euclidean_distance(
+                        self._vertices[vertex_id], circumcircle[0]
+                    )
+                    if dist < circumcircle[1]:
                         bad_triangles.append(triangle)
                         edges += [
                             (triangle[i], triangle[j])
