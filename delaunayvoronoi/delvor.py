@@ -30,13 +30,23 @@ class DelVor:
         """Representation."""
         return f"DelVor({len(self.points)} points)"
 
-    def _construct_bbox(self):
+    def _compute_bbox(self):
         """Construct bounding box."""
         x, y = zip(*self.coord)
-        self._bbox = (
-            (min(x) - self.buffer, min(y) - self.buffer),
-            (max(x) + self.buffer, max(y) + self.buffer),
-        )
+        self._xmin = min(x) - self.buffer
+        self._ymin = min(y) - self.buffer
+        self._xmax = max(x) + self.buffer
+        self._ymax = max(y) + self.buffer
+
+    def _make_supertriangle(self):
+        self._vertices = {
+            -3: (self._xmin - (self._ymax - self._ymin), self._ymin),
+            -2: (self._xmax + (self._ymax - self._ymin), self._ymin),
+            -1: (
+                0.5 * (self._xmin + self._xmax),
+                self._ymax + 0.5 * (self._xmax - self._xmin),
+            ),
+        }
 
     def compute_delaunay(self):
         # TODO document
@@ -45,7 +55,19 @@ class DelVor:
         # {dict} = node
         if self.triangulation is None:
             # construct bbox
-            self._construct_bbox()
+            self._compute_bbox()
+            # make supertriangle
+            self._make_supertriangle()
+            _super_vertices = self._vertices.keys()
+
+            # add first vertex
+
+            # iterate over all vertices
+
+            # remove super vertices
+            for vertex in _super_vertices:
+                pass
+
         return self.triangulation
 
     def compute_tessellation(self):
