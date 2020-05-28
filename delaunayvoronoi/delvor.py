@@ -3,6 +3,8 @@
 2020, Xavier R. Hoffmann <xrhoffmann@gmail.com>
 """
 
+import numpy as np
+
 
 class DelVor:
     # TODO document
@@ -25,6 +27,11 @@ class DelVor:
             self.buffer = buffer
             self.triangulation = None
             self.tessellation = None
+            self._xmin = None
+            self._ymin = None
+            self._xmax = None
+            self._ymax = None
+            self._vertices = None
 
     def __repr__(self):
         """Representation."""
@@ -39,6 +46,7 @@ class DelVor:
         self._ymax = max(y) + self.buffer
 
     def _make_supertriangle(self):
+        """Create vertices of supertriangle."""
         self._vertices = {
             -3: (self._xmin - (self._ymax - self._ymin), self._ymin),
             -2: (self._xmax + (self._ymax - self._ymin), self._ymin),
@@ -48,6 +56,43 @@ class DelVor:
             ),
         }
 
+    def _bisector(self, *, v1, v2):
+        """Compute bisecting line between two vertices."""
+        px = 0.5 * (self._vertices[v2][0] + self._vertices[v1][0])
+        py = 0.5 * (self._vertices[v2][1] + self._vertices[v1][1])
+        vx = self._vertices[v1][0] - self._vertices[v2][0]
+        vy = self._vertices[v1][1] - self._vertices[v2][1]
+        mod = np.sqrt(vx ** 2 + vy ** 2)
+        vx /= mod
+        vy /= mod
+        dx = vy
+        dy = -vx
+        return px, py, dx, dy
+
+    def _circumference(self, triangle):
+        line1 = self._bisector(v1=triangle[0], v2=triangle[1])
+        line2 = self._bisector(v1=triangle[0], v2=triangle[2])
+        if line1[2] == 0:
+            # line1 horizontal
+            x0 = line1[0]
+            y0 = line2[1] + (x0 - line2[0]) * line2[3] / line2[2]
+        elif line2[2] == 0:
+            # line2 horizontal
+            x0 = line2[0]
+            y0 = line1[1] + (x0 - line1[0]) * line1[3] / line1[2]
+        else:
+            a1 = line1[3] / line1[2]
+            b1 = line1[1] - line1[0] * a1
+            a2 = line2[3] / line2[2]
+            b2 = line2[1] - line2[0] * a2
+            x0 = (b2 - b1) / (a1 - a2)
+            y0 = a1 * x0 + b1
+        radius = np.sqrt(
+            (x0 - self._vertices[triangle[0]][0]) ** 2
+            + (y0 - self._vertices[triangle[0]][1]) ** 2
+        )
+        return (x0, y0), radius
+
     def compute_delaunay(self):
         # TODO document
         """Delaunay triangulation."""
@@ -56,11 +101,16 @@ class DelVor:
         if self.triangulation is None:
             # construct bbox
             self._compute_bbox()
+
             # make supertriangle
             self._make_supertriangle()
             _super_vertices = self._vertices.keys()
 
             # add first vertex
+            self._vertices[0] = self.coord[0]
+            self._triangles = {}
+            for tr in [(-3, -2, 0), (-3, -1, 0), (-2, -1, 0)]:
+                self._triangles[tr] = self._circumference(tr)
 
             # iterate over all vertices
 
