@@ -16,8 +16,8 @@ class DelVor:
             err = "At least 3 points are necessary."
             raise ValueError(err)
         else:
-            pass
+            self.points = tuple(zip(x, y))
 
     def __repr__(self):
         """Representation."""
-        pass
+        return f"DelVor({len(self.points)} points)"
