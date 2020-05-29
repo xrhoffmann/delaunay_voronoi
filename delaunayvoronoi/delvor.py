@@ -16,10 +16,10 @@ class DelVor:
         # TODO document
         """Constructor."""
         if len(x) != len(y):
-            err = "Coordinates x and y should have the same length."
+            err = f"Coordinates x ({len(x)}) and y ({len(y)}) must have same length."
             raise ValueError(err)
         elif len(x) < 3:
-            err = "At least 3 points are necessary."
+            err = f"Unsufficient number of points ({len(x)}). Must be >= 3."
             raise ValueError(err)
         elif buffer < 0:
             err = f"Buffer ({buffer}) should be >= 0."
@@ -187,8 +187,23 @@ class DelVor:
             # assign nodes
             self._nodes = {idx: circum[0] for idx, circum in self._triangles.items()}
             # assign links
-
+            self._links = []
+            self._midpoints = []
+            for edge, triangles in self._edges.items():
+                if len(triangles) == 2:
+                    self._links.append(tuple(triangles))
+                elif len(triangles) == 1:
+                    # TODO finish
+                    v1, v2 = edge
+                    x0 = 0.5 * (self._vertices[v1][0] + self._vertices[v2][0])
+                    y0 = 0.5 * (self._vertices[v1][1] + self._vertices[v2][1])
+                    xc, xy = self._triangles[triangles[0]][0]
+                    self._midpoints.append((x0, y0))
+                    pass
+                else:
+                    err = f"Edge ({edge}) pertains to {len(triangles)} triangles. Should be 1 or 2."
+                    raise ValueError(err)
             # assign tessellation
-            self.tessellation = self._nodes, self._links
+            self.tessellation = self._nodes, set(self._links), set(self._midpoints)
 
         return self.tessellation
