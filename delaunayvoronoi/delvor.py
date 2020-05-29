@@ -3,7 +3,7 @@
 2020, Xavier R. Hoffmann <xrhoffmann@gmail.com>
 """
 
-from collections import Counter
+from collections import Counter, defaultdict
 
 import numpy as np
 
@@ -36,6 +36,8 @@ class DelVor:
             self._vertices = None
             self._edges = None
             self._triangles = None
+            self._nodes = None
+            self._links = None
 
     def __repr__(self):
         """Representation."""
@@ -165,19 +167,28 @@ class DelVor:
             for triangle in bad_triangles:
                 del self._triangles[triangle]
 
+            # compute edges
+            self._edges = defaultdict(list)
+            for triangle in self._triangles.keys():
+                for i, j in [(0, 1), (0, 2), (1, 2)]:
+                    self._edges[(triangle[i], triangle[j])].append(triangle)
+
             # assign triangulation
-            self._edges = set(
-                (triangle[i], triangle[j])
-                for triangle in self._triangles.keys()
-                for i, j in [(0, 1), (0, 2), (1, 2)]
-            )
-            self.triangulation = self._vertices, self._edges
+            self.triangulation = self._vertices, set(self._edges.keys())
 
         return self.triangulation
 
-    def compute_tessellation(self):
+    def compute_voronoi(self):
         # TODO document
         """Voronoi tessellation."""
         if self.triangulation is None:
             _, _ = self.compute_delaunay()
-        pass
+        if self.tessellation is None:
+            # assign nodes
+            self._nodes = {idx: circum[0] for idx, circum in self._triangles.items()}
+            # assign links
+
+            # assign tessellation
+            self.tessellation = self._nodes, self._links
+
+        return self.tessellation
