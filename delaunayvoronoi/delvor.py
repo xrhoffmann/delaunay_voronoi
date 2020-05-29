@@ -34,6 +34,8 @@ class DelVor:
             self._xmax = None
             self._ymax = None
             self._vertices = None
+            self._edges = None
+            self._triangles = None
 
     def __repr__(self):
         """Representation."""
@@ -98,7 +100,7 @@ class DelVor:
 
     @staticmethod
     def euclidean_distance(p1, p2):
-        """Compute Euclidean distance between two points."""
+        """Euclidean distance between two points."""
         d = (p1[0] - p2[0]) ** 2 + (p2[1] - p1[1]) ** 2
         return np.sqrt(d)
 
@@ -164,7 +166,12 @@ class DelVor:
                 del self._triangles[triangle]
 
             # assign triangulation
-            self.triangulation = self._vertices, tuple(self._triangles.keys())
+            self._edges = set(
+                (triangle[i], triangle[j])
+                for triangle in self._triangles.keys()
+                for i, j in [(0, 1), (0, 2), (1, 2)]
+            )
+            self.triangulation = self._vertices, self._edges
 
         return self.triangulation
 
@@ -172,6 +179,5 @@ class DelVor:
         # TODO document
         """Voronoi tessellation."""
         if self.triangulation is None:
-            pass
-            # self.compute_delaunay()
+            _, _ = self.compute_delaunay()
         pass
