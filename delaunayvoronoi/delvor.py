@@ -27,21 +27,12 @@ class DelVor:
         else:
             self.coord = tuple(zip(x, y))
             self.buffer = buffer
-            self.triangulation = None
-            self.tessellation = None
-            self._xmin = None
-            self._ymin = None
-            self._xmax = None
-            self._ymax = None
-            self._vertices = None
-            self._edges = None
-            self._triangles = None
-            self._nodes = None
-            self._links = None
+            self._triangulation = None
+            self._tessellation = None
 
     def __repr__(self):
         """Representation."""
-        return f"DelVor({len(self.points)} points)"
+        return f"DelVor({len(self.coord)} points)"
 
     def _compute_bbox(self):
         """Construct bounding box."""
@@ -71,9 +62,7 @@ class DelVor:
         mod = np.sqrt(vx ** 2 + vy ** 2)
         vx /= mod
         vy /= mod
-        dx = vy
-        dy = -vx
-        return px, py, dx, dy
+        return px, py, vy, -vx
 
     def _circumference(self, triangle):
         """Compute circumcircle of a triangle."""
@@ -111,7 +100,7 @@ class DelVor:
         """Delaunay triangulation."""
         # result: add _bbox and triangulation = {dict}, (tuple)
         # {dict} = node
-        if self.triangulation is None:
+        if self._triangulation is None:
             # construct bbox
             self._compute_bbox()
 
@@ -132,7 +121,6 @@ class DelVor:
                 # find bad triangles
                 bad_triangles = []
                 edges = []
-                # TODO optimize with numpy vectoritzation?
                 for triangle, circumcircle in self._triangles.items():
                     dist = self.euclidean_distance(
                         self._vertices[vertex_id], circumcircle[0]
@@ -174,36 +162,58 @@ class DelVor:
                     self._edges[(triangle[i], triangle[j])].append(triangle)
 
             # assign triangulation
-            self.triangulation = self._vertices, set(self._edges.keys())
+            self._triangulation = 1
 
-        return self.triangulation
+        return self._vertices, set(self._edges.keys())
 
     def compute_voronoi(self):
         # TODO document
         """Voronoi tessellation."""
-        if self.triangulation is None:
+        if self._triangulation is None:
+            # compute delaunay if necessary
             _, _ = self.compute_delaunay()
-        if self.tessellation is None:
+        if self._tessellation is None:
             # assign nodes
             self._nodes = {idx: circum[0] for idx, circum in self._triangles.items()}
             # assign links
+            scale = 0.1 * np.sqrt(
+                (self._xmax - self._xmin) ** 2 + (self._ymax - self._ymin) ** 2
+            )
             self._links = []
-            self._midpoints = []
+            self._arrows = {}
             for edge, triangles in self._edges.items():
                 if len(triangles) == 2:
+                    # interior edges
                     self._links.append(tuple(triangles))
                 elif len(triangles) == 1:
-                    # TODO finish
+                    # outer edges
                     v1, v2 = edge
+                    v3 = [x for x in triangles[0] if x not in edge][0]
+
+                    # compute arrow
                     x0 = 0.5 * (self._vertices[v1][0] + self._vertices[v2][0])
                     y0 = 0.5 * (self._vertices[v1][1] + self._vertices[v2][1])
-                    xc, xy = self._triangles[triangles[0]][0]
-                    self._midpoints.append((x0, y0))
-                    pass
+                    xc, yc = self._triangles[triangles[0]][0]
+                    vcx = xc - x0
+                    vcy = yc - y0
+                    mod = np.sqrt(vcx ** 2 + vcy ** 2)
+                    vcx *= scale / mod
+                    vcy *= scale / mod
+
+                    # invert direction?
+                    v3x = self._vertices[v3][0] - x0
+                    v3y = self._vertices[v3][1] - y0
+                    mod3 = np.sqrt(v3x ** 2 + v3y ** 2)
+                    cosine = (vcx * v3x + vcy * v3y) / (scale * mod3)
+                    if cosine > 0:
+                        vcx *= -1
+                        vcy *= -1
+                    self._arrows[triangles[0]] = (vcx, vcy)
                 else:
                     err = f"Edge ({edge}) pertains to {len(triangles)} triangles. Should be 1 or 2."
                     raise ValueError(err)
-            # assign tessellation
-            self.tessellation = self._nodes, set(self._links), set(self._midpoints)
 
-        return self.tessellation
+            # assign tessellation
+            self._tessellation = 1
+
+        return self._nodes, set(self._links), self._arrows
