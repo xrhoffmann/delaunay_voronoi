@@ -13,9 +13,16 @@ class DelVor:
     """Compute triangulation and/or tessellation."""
 
     def __init__(self, *, x: Sequence[float], y: Sequence[float]) -> None:
-        # TODO document
-        # TODO initialize bbox
-        """Constructor."""
+        """Constructor for class instance.
+
+        Args:
+            x: x-coordinates of points, 1d-array.
+            y: y-coordinates of points, 1d-array.
+
+        Raises:
+            ValueError: If x and y have different length.
+            ValueError: If less than 3 points.
+        """
         if len(x) != len(y):
             err = f"Coordinates x ({len(x)}) and y ({len(y)}) must have same length."
             raise ValueError(err)
@@ -32,7 +39,7 @@ class DelVor:
         return f"DelVor({len(self.coord)} points)"
 
     def _compute_bbox(self) -> None:
-        """Construct bounding box."""
+        """Construct bounding box and scale."""
         x, y = zip(*self.coord)
         self._xmin = min(x) - 1.0
         self._ymin = min(y) - 1.0
@@ -54,18 +61,39 @@ class DelVor:
         }
 
     def _bisector(self, *, v1: int, v2: int) -> Tuple[float, float, float, float]:
-        """Compute bisecting line between two vertices."""
+        """Compute bisecting line between two vertices.
+
+        Args:
+            v1:
+            v2:
+
+        Returns:
+            px:
+            py:
+            vx:
+            vy:
+        """
         px = 0.5 * (self._vertices[v2][0] + self._vertices[v1][0])
         py = 0.5 * (self._vertices[v2][1] + self._vertices[v1][1])
         vx = self._vertices[v1][0] - self._vertices[v2][0]
         vy = self._vertices[v1][1] - self._vertices[v2][1]
         mod = math.sqrt(vx ** 2 + vy ** 2)
-        return px, py, vy / mod, -vx / mod
+        vx, vy = vy / mod, -vx / mod
+        return px, py, vx, vy
 
     def _circumference(
         self, *, triangle: Tuple[int, int, int]
     ) -> Tuple[Tuple[float, float], float]:
-        """Compute circumcircle of a triangle."""
+        """Compute circumcircle of a triangle.
+
+        Args:
+            triangle: Vertices of triangle in form (v1, v2, v3).
+
+        Returns:
+            center: Center of circumcircle.
+            radius: Radius of circumcircle
+
+        """
         line1 = self._bisector(v1=triangle[0], v2=triangle[1])
         line2 = self._bisector(v1=triangle[0], v2=triangle[2])
         if line1[2] == 0:
@@ -87,12 +115,22 @@ class DelVor:
             (x0 - self._vertices[triangle[0]][0]) ** 2
             + (y0 - self._vertices[triangle[0]][1]) ** 2
         )
-        return (x0, y0), radius
+        center = (x0, y0)
+        return center, radius
 
     @staticmethod
     def euclidean_distance(p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
-        """Euclidean distance between two points."""
-        d = (p1[0] - p2[0]) ** 2 + (p2[1] - p1[1]) ** 2
+        """Euclidean distance between two points.
+
+        Args:
+            p1: Coordinates in form (x, y).
+            p2: Coordinates in form (x, y).
+
+        Returns:
+            Euclidean distance between input points.
+
+        """
+        d = (p2[0] - p1[0]) ** 2 + (p2[1] - p1[1]) ** 2
         return math.sqrt(d)
 
     def _arrow_vector(
