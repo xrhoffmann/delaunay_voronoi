@@ -5,16 +5,14 @@
 
 import math
 from collections import Counter, defaultdict
-from typing import Sequence, Tuple
+from typing import Dict, Sequence, Tuple
 
 
 class DelVor:
     # TODO document
     """Compute triangulation and/or tessellation."""
 
-    def __init__(
-        self, *, x: Sequence[float], y: Sequence[float], buffer: float = 1
-    ) -> None:
+    def __init__(self, *, x: Sequence[float], y: Sequence[float]) -> None:
         # TODO document
         # TODO initialize bbox
         """Constructor."""
@@ -24,14 +22,10 @@ class DelVor:
         elif len(x) < 3:
             err = f"Unsufficient number of points ({len(x)}). Must be >= 3."
             raise ValueError(err)
-        elif buffer < 0:
-            err = f"Buffer ({buffer}) should be >= 0."
-            raise ValueError(err)
         else:
             self.coord = tuple(zip(x, y))
-            self.buffer = buffer
-            self._triangulation = None
-            self._tessellation = None
+            self._triangulation = False
+            self._tessellation = False
 
     def __repr__(self) -> str:
         """Representation."""
@@ -40,10 +34,13 @@ class DelVor:
     def _compute_bbox(self) -> None:
         """Construct bounding box."""
         x, y = zip(*self.coord)
-        self._xmin = min(x) - self.buffer
-        self._ymin = min(y) - self.buffer
-        self._xmax = max(x) + self.buffer
-        self._ymax = max(y) + self.buffer
+        self._xmin = min(x) - 1.0
+        self._ymin = min(y) - 1.0
+        self._xmax = max(x) + 1.0
+        self._ymax = max(y) + 1.0
+        self._scale = 0.1 * math.sqrt(
+            (self._xmax - self._xmin) ** 2 + (self._ymax - self._ymin) ** 2
+        )
 
     def _make_supertriangle(self) -> None:
         """Create vertices of supertriangle."""
@@ -98,9 +95,9 @@ class DelVor:
         d = (p1[0] - p2[0]) ** 2 + (p2[1] - p1[1]) ** 2
         return math.sqrt(d)
 
-    def _extension_arrow(
+    def _arrow_vector(
         self, *, edge: Tuple[int, int], triangle: Tuple[int, int, int]
-    ) -> None:
+    ) -> Tuple[float, float]:
         """Arrow extending to infinity."""
         # TODO document
         v1, v2 = edge
@@ -123,7 +120,7 @@ class DelVor:
         if cosine > 0:
             vcx *= -1
             vcy *= -1
-        self._arrows[triangle] = (vcx, vcy)
+        return vcx, vcy
 
     def _boundary_arrow(
         self, *, node: Tuple[float, float], vector: Tuple[float, float]
@@ -158,10 +155,12 @@ class DelVor:
                 bound_y = self._ymin
         return bound_x, bound_y
 
-    def compute_delaunay(self):
+    def compute_delaunay(
+        self
+    ) -> Tuple[Dict[int, Tuple[float, float]], Tuple[Tuple[int, int], ...]]:
         # TODO document
         """Delaunay triangulation."""
-        if self._triangulation is None:
+        if not self._triangulation:
             # construct bbox
             self._compute_bbox()
 
@@ -223,32 +222,36 @@ class DelVor:
                     self._edges[(triangle[i], triangle[j])].append(triangle)
 
             # assign triangulation
-            self._triangulation = 1
+            self._triangulation = True
 
-        return self._vertices, set(self._edges.keys())
+        return self._vertices, tuple(self._edges.keys())
 
-    def compute_voronoi(self):
+    def compute_voronoi(
+        self
+    ) -> Tuple[
+        Dict[Tuple[int, int, int], Tuple[float, float]],
+        Tuple[Tuple[Tuple[int, int, int], Tuple[int, int, int]], ...],
+        Dict[Tuple[int, int, int], Tuple[float, float]],
+    ]:
         # TODO document
         """Voronoi tessellation."""
-        if self._triangulation is None:
+        if not self._triangulation:
             # compute delaunay if necessary
             _, _ = self.compute_delaunay()
-        if self._tessellation is None:
+        if not self._tessellation:
             # assign nodes
             self._nodes = {idx: circum[0] for idx, circum in self._triangles.items()}
             # assign links
-            self._scale = 0.1 * math.sqrt(
-                (self._xmax - self._xmin) ** 2 + (self._ymax - self._ymin) ** 2
-            )
             self._links = []
             self._arrows = {}
             for edge, triangles in self._edges.items():
                 if len(triangles) == 2:
                     # interior edges
-                    self._links.append(tuple(triangles))
+                    self._links.append((triangles[0], triangles[1]))
                 elif len(triangles) == 1:
                     # outer edges
-                    self._extension_arrow(edge=edge, triangle=triangles[0])
+                    vcx, vcy = self._arrow_vector(edge=edge, triangle=triangles[0])
+                    self._arrows[triangles[0]] = (vcx, vcy)
                 else:
                     err = [
                         f"Edge {edge} pertains to {len(triangles)} triangles.",
@@ -257,14 +260,26 @@ class DelVor:
                     raise ValueError(" ".join(err))
 
             # assign tessellation
-            self._tessellation = 1
+            self._tessellation = True
 
-        return self._nodes, set(self._links), self._arrows
+        return self._nodes, (*self._links,), self._arrows
 
-    def prepare_plot(self):
-        """Compute coordinates for plotting."""
-        if self._tessellation is None:
+    def prepare_plot(
+        self, bbox: Tuple[Tuple[float, float], Tuple[float, float]] = None
+    ) -> Tuple[
+        Tuple[Tuple[float, float], ...],
+        Tuple[Tuple[Tuple[float, float], Tuple[float, float]], ...],
+        Tuple[Tuple[float, float], ...],
+        Tuple[Tuple[Tuple[float, float], Tuple[float, float]], ...],
+    ]:
+        """Compute elements for plotting."""
+        if not self._tessellation:
             _, _, _ = self.compute_voronoi()
+        if bbox is not None:
+            self._xmin = bbox[0][0]
+            self._ymin = bbox[0][1]
+            self._xmax = bbox[1][0]
+            self._ymax = bbox[1][1]
 
         # triangulation
         points_delaunay = tuple(self._vertices.values())
