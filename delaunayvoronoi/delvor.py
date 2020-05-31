@@ -98,11 +98,59 @@ class DelVor:
         d = (p1[0] - p2[0]) ** 2 + (p2[1] - p1[1]) ** 2
         return np.sqrt(d)
 
+    def _exension_arrow(self, *, edge, triangle):
+        """Arrow extending to infinity."""
+        # TODO document
+        v1, v2 = edge
+        v3 = [x for x in triangle if x not in edge][0]
+
+        # compute arrow
+        x0 = 0.5 * (self._vertices[v1][0] + self._vertices[v2][0])
+        y0 = 0.5 * (self._vertices[v1][1] + self._vertices[v2][1])
+        xc, yc = self._triangles[triangle][0]
+        vcx = xc - x0
+        vcy = yc - y0
+        mod = np.sqrt(vcx ** 2 + vcy ** 2)
+        vcx *= self._scale / mod
+        vcy *= self._scale / mod
+
+        # invert direction?
+        v3x = self._vertices[v3][0] - x0
+        v3y = self._vertices[v3][1] - y0
+        cosine = vcx * v3x + vcy * v3y
+        if cosine > 0:
+            vcx *= -1
+            vcy *= -1
+        self._arrows[triangle] = (vcx, vcy)
+
+    def _boundary_arrow(self, *, node, vector):
+        """Extend arrows to bounding box."""
+        if abs(vector[0]) > 0:
+            # left boundary
+            boundary_y = node[1] + (self._xmin - node[0]) * vector[1] / vector[0]
+            boundary_x = self._xmin
+            if boundary_y < self._ymin:
+                boundary_y = self._ymin
+                boundary_x = node[0] + (self._ymin - node[1]) * vector[0] / vector[1]
+            elif boundary_y > self._ymax:
+                boundary_y = self._ymax
+                boundary_x = node[0] + (self._ymax - node[1]) * vector[0] / vector[1]
+            vx = boundary_x - node[0]
+            vy = boundary_y - node[1]
+            if vx * vector[0] + vy * vector[1] < 0:
+                boundary_x = node[0]
+                boundary_y = node[1]
+        else:
+            boundary_x = node[0]
+            if vector[1] * (self._ymax - node[1]) > 0:
+                boundary_y = self._ymax
+            else:
+                boundary_y = self._ymin
+        return boundary_x, boundary_y
+
     def compute_delaunay(self):
         # TODO document
         """Delaunay triangulation."""
-        # result: add _bbox and triangulation = {dict}, (tuple)
-        # {dict} = node
         if self._triangulation is None:
             # construct bbox
             self._compute_bbox()
@@ -179,7 +227,7 @@ class DelVor:
             # assign nodes
             self._nodes = {idx: circum[0] for idx, circum in self._triangles.items()}
             # assign links
-            scale = 0.1 * np.sqrt(
+            self._scale = 0.1 * np.sqrt(
                 (self._xmax - self._xmin) ** 2 + (self._ymax - self._ymin) ** 2
             )
             self._links = []
@@ -190,27 +238,7 @@ class DelVor:
                     self._links.append(tuple(triangles))
                 elif len(triangles) == 1:
                     # outer edges
-                    v1, v2 = edge
-                    v3 = [x for x in triangles[0] if x not in edge][0]
-
-                    # compute arrow
-                    x0 = 0.5 * (self._vertices[v1][0] + self._vertices[v2][0])
-                    y0 = 0.5 * (self._vertices[v1][1] + self._vertices[v2][1])
-                    xc, yc = self._triangles[triangles[0]][0]
-                    vcx = xc - x0
-                    vcy = yc - y0
-                    mod = np.sqrt(vcx ** 2 + vcy ** 2)
-                    vcx *= scale / mod
-                    vcy *= scale / mod
-
-                    # invert direction?
-                    v3x = self._vertices[v3][0] - x0
-                    v3y = self._vertices[v3][1] - y0
-                    cosine = vcx * v3x + vcy * v3y
-                    if cosine > 0:
-                        vcx *= -1
-                        vcy *= -1
-                    self._arrows[triangles[0]] = (vcx, vcy)
+                    self._exension_arrow(edge=edge, triangle=triangles[0])
                 else:
                     err = [
                         f"Edge {edge} pertains to {len(triangles)} triangles.",
@@ -235,6 +263,7 @@ class DelVor:
         )
 
         # tessellation
+        # separate interior and exterior nodes
         int_nodes = {
             triangle: center
             for triangle, center in self._nodes.items()
@@ -248,6 +277,7 @@ class DelVor:
         }
         points_voronoi = tuple(int_nodes.values())
 
+        # add interior edges and list pending arrows
         edges_voronoi = []
         arrows = [
             (self._nodes[node], vector)
@@ -266,5 +296,12 @@ class DelVor:
             else:
                 # interior node
                 edges_voronoi.append((self._nodes[link[0]], self._nodes[link[1]]))
+
+        # extend arrows
+        for arrow in arrows:
+            boundary_x, boundary_y = self._boundary_arrow(
+                node=arrow[0], vector=arrow[1]
+            )
+            edges_voronoi.append((arrow[0], (boundary_x, boundary_y)))
 
         return points_delaunay, edges_delaunay, points_voronoi, tuple(edges_voronoi)
