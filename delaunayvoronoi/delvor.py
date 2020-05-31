@@ -9,8 +9,14 @@ from typing import Dict, Sequence, Tuple
 
 
 class DelVor:
-    # TODO document
-    """Compute triangulation and/or tessellation."""
+    """Compute triangulation and/or tessellation.
+
+    Methods:
+        compute_delaunay: Compute Delaunay triangulation.
+        compute_voronoi: Compute Voronoi tessellation.
+        prepare_plot: Compute elements for plotting in bounding box.
+        euclidean_distance: Compute Euclidean distance between points.
+    """
 
     def __init__(self, *, x: Sequence[float], y: Sequence[float]) -> None:
         """Constructor for class instance.
@@ -64,14 +70,14 @@ class DelVor:
         """Compute bisecting line between two vertices.
 
         Args:
-            v1:
-            v2:
+            v1: Vertex 1.
+            v2: Vertex 2.
 
         Returns:
-            px:
-            py:
-            vx:
-            vy:
+            px: Midpoint, x-coordinate.
+            py: Midpoint, y-coordinate.
+            vx: Orthogonal vector, x-component.
+            vy: Orthogonal vector, y-component.
         """
         px = 0.5 * (self._vertices[v2][0] + self._vertices[v1][0])
         py = 0.5 * (self._vertices[v2][1] + self._vertices[v1][1])
@@ -118,25 +124,20 @@ class DelVor:
         center = (x0, y0)
         return center, radius
 
-    @staticmethod
-    def euclidean_distance(p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
-        """Euclidean distance between two points.
-
-        Args:
-            p1: Coordinates in form (x, y).
-            p2: Coordinates in form (x, y).
-
-        Returns:
-            Euclidean distance between input points.
-
-        """
-        d = (p2[0] - p1[0]) ** 2 + (p2[1] - p1[1]) ** 2
-        return math.sqrt(d)
-
     def _arrow_vector(
         self, *, edge: Tuple[int, int], triangle: Tuple[int, int, int]
     ) -> Tuple[float, float]:
-        """Arrow extending to infinity."""
+        """Arrow extending to infinity.
+
+        Args:
+            edge: Edge, in form (v1, v2).
+            triangle: Vertices of triangle, in form (v1, v2, v3) (or
+                other order).
+
+        Returns:
+            vcx: Outward vector, x-component.
+            vcy: Outward vector, y-component.
+        """
         # TODO document
         v1, v2 = edge
         v3 = [x for x in triangle if x not in edge][0]
@@ -163,7 +164,15 @@ class DelVor:
     def _boundary_arrow(
         self, *, node: Tuple[float, float], vector: Tuple[float, float]
     ) -> Tuple[float, float]:
-        """Extend arrows to bounding box."""
+        """Extend arrows to bounding box.
+
+        Args:
+            node: Coordinates of circumcentre, in form (x, y).
+            vector: Outward vector, in form (v_x, v_y).
+
+        Returns:
+            Coordinates of intersection with boundaries, in form (x, y).
+        """
         if vector[0] < 0:
             # left boundary
             bound_x = self._xmin
@@ -193,11 +202,32 @@ class DelVor:
                 bound_y = self._ymin
         return bound_x, bound_y
 
+    @staticmethod
+    def euclidean_distance(p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
+        """Euclidean distance between two points.
+
+        Args:
+            p1: Coordinates in form (x, y).
+            p2: Coordinates in form (x, y).
+
+        Returns:
+            Euclidean distance between input points.
+
+        """
+        d = (p2[0] - p1[0]) ** 2 + (p2[1] - p1[1]) ** 2
+        return math.sqrt(d)
+
     def compute_delaunay(
         self
     ) -> Tuple[Dict[int, Tuple[float, float]], Tuple[Tuple[int, int], ...]]:
-        # TODO document
-        """Delaunay triangulation."""
+        """Delaunay triangulation.
+
+        Returns:
+            vertices: Vertex id (key) and coordinates (values), in form
+                (x, y).
+            edges: Pairs of connected vertices.
+
+        """
         if not self._triangulation:
             # construct bbox
             self._compute_bbox()
@@ -271,8 +301,19 @@ class DelVor:
         Tuple[Tuple[Tuple[int, int, int], Tuple[int, int, int]], ...],
         Dict[Tuple[int, int, int], Tuple[float, float]],
     ]:
-        # TODO document
-        """Voronoi tessellation."""
+        """Voronoi tessellation.
+
+        Returns:
+            nodes: Triangle id (key) and circumcentre coordinates
+                (value), in form (x, y).
+            links: Pairs of connectes triangles.
+            arrows: Triangle id (key), and outward vector (value), in
+                form (v_x, v_y).
+
+        Raises:
+            ValueError: If an edge is found to pertain to none or > 3
+                triangles.
+        """
         if not self._triangulation:
             # compute delaunay if necessary
             _, _ = self.compute_delaunay()
@@ -310,7 +351,22 @@ class DelVor:
         Tuple[Tuple[float, float], ...],
         Tuple[Tuple[Tuple[float, float], Tuple[float, float]], ...],
     ]:
-        """Compute elements for plotting."""
+        """Compute elements for plotting.
+
+        Args:
+            bbox: Plotting limits, in form ((x_min, y_min),
+                (x_max, y_max)). If not provided, infere from data.
+
+        Returns:
+            points_delaunay: Coordinates of vertices, in form (x, y).
+            edges_delaunay: Coordinates of edges, in form ((x1, y1),
+                (x2, y2)).
+            points_voronoi: Coordinates of interior circumcenters, in
+                form (x, y).
+            edges_voronoi: Coordinates of interior links (including
+                extensions towards boundary), in form ((x1, y1),
+                (x2, y2)).
+        """
         if not self._tessellation:
             _, _, _ = self.compute_voronoi()
         if bbox is not None:
