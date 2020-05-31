@@ -213,8 +213,11 @@ class DelVor:
                         vcy *= -1
                     self._arrows[triangles[0]] = (vcx, vcy)
                 else:
-                    err = f"Edge ({edge}) pertains to {len(triangles)} triangles. Should be 1 or 2."
-                    raise ValueError(err)
+                    err = [
+                        f"Edge {edge} pertains to {len(triangles)} triangles.",
+                        "Should be 1 or 2.",
+                    ]
+                    raise ValueError(" ".join(err))
 
             # assign tessellation
             self._tessellation = 1
