@@ -3,10 +3,9 @@
 2020, Xavier R. Hoffmann <xrhoffmann@gmail.com>
 """
 
+import math
 from collections import Counter, defaultdict
 from typing import Sequence, Tuple
-
-import numpy as np
 
 
 class DelVor:
@@ -17,6 +16,7 @@ class DelVor:
         self, *, x: Sequence[float], y: Sequence[float], buffer: float = 1
     ) -> None:
         # TODO document
+        # TODO initialize bbox
         """Constructor."""
         if len(x) != len(y):
             err = f"Coordinates x ({len(x)}) and y ({len(y)}) must have same length."
@@ -62,7 +62,7 @@ class DelVor:
         py = 0.5 * (self._vertices[v2][1] + self._vertices[v1][1])
         vx = self._vertices[v1][0] - self._vertices[v2][0]
         vy = self._vertices[v1][1] - self._vertices[v2][1]
-        mod = np.sqrt(vx ** 2 + vy ** 2)
+        mod = math.sqrt(vx ** 2 + vy ** 2)
         return px, py, vy / mod, -vx / mod
 
     def _circumference(
@@ -86,7 +86,7 @@ class DelVor:
             b2 = line2[1] - line2[0] * a2
             x0 = (b2 - b1) / (a1 - a2)
             y0 = a1 * x0 + b1
-        radius = np.sqrt(
+        radius = math.sqrt(
             (x0 - self._vertices[triangle[0]][0]) ** 2
             + (y0 - self._vertices[triangle[0]][1]) ** 2
         )
@@ -96,9 +96,11 @@ class DelVor:
     def euclidean_distance(p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
         """Euclidean distance between two points."""
         d = (p1[0] - p2[0]) ** 2 + (p2[1] - p1[1]) ** 2
-        return np.sqrt(d)
+        return math.sqrt(d)
 
-    def _exension_arrow(self, *, edge, triangle):
+    def _extension_arrow(
+        self, *, edge: Tuple[int, int], triangle: Tuple[int, int, int]
+    ) -> None:
         """Arrow extending to infinity."""
         # TODO document
         v1, v2 = edge
@@ -110,7 +112,7 @@ class DelVor:
         xc, yc = self._triangles[triangle][0]
         vcx = xc - x0
         vcy = yc - y0
-        mod = np.sqrt(vcx ** 2 + vcy ** 2)
+        mod = math.sqrt(vcx ** 2 + vcy ** 2)
         vcx *= self._scale / mod
         vcy *= self._scale / mod
 
@@ -123,30 +125,38 @@ class DelVor:
             vcy *= -1
         self._arrows[triangle] = (vcx, vcy)
 
-    def _boundary_arrow(self, *, node, vector):
+    def _boundary_arrow(
+        self, *, node: Tuple[float, float], vector: Tuple[float, float]
+    ) -> Tuple[float, float]:
         """Extend arrows to bounding box."""
-        if abs(vector[0]) > 0:
+        if vector[0] < 0:
             # left boundary
-            boundary_y = node[1] + (self._xmin - node[0]) * vector[1] / vector[0]
-            boundary_x = self._xmin
-            if boundary_y < self._ymin:
-                boundary_y = self._ymin
-                boundary_x = node[0] + (self._ymin - node[1]) * vector[0] / vector[1]
-            elif boundary_y > self._ymax:
-                boundary_y = self._ymax
-                boundary_x = node[0] + (self._ymax - node[1]) * vector[0] / vector[1]
-            vx = boundary_x - node[0]
-            vy = boundary_y - node[1]
-            if vx * vector[0] + vy * vector[1] < 0:
-                boundary_x = node[0]
-                boundary_y = node[1]
+            bound_x = self._xmin
+            bound_y = node[1] + (bound_x - node[0]) * vector[1] / vector[0]
+            if bound_y < self._ymin:
+                bound_y = self._ymin
+                bound_x = node[0] + (bound_y - node[1]) * vector[0] / vector[1]
+            elif bound_y > self._ymax:
+                bound_y = self._ymax
+                bound_x = node[0] + (bound_y - node[1]) * vector[0] / vector[1]
+        elif vector[0] > 0:
+            # right boundary
+            bound_x = self._xmax
+            bound_y = node[1] + (bound_x - node[0]) * vector[1] / vector[0]
+            if bound_y < self._ymin:
+                bound_y = self._ymin
+                bound_x = node[0] + (bound_y - node[1]) * vector[0] / vector[1]
+            elif bound_y > self._ymax:
+                bound_y = self._ymax
+                bound_x = node[0] + (bound_y - node[1]) * vector[0] / vector[1]
         else:
-            boundary_x = node[0]
-            if vector[1] * (self._ymax - node[1]) > 0:
-                boundary_y = self._ymax
+            # vertical line
+            bound_x = node[0]
+            if vector[1] > 0:
+                bound_y = self._ymax
             else:
-                boundary_y = self._ymin
-        return boundary_x, boundary_y
+                bound_y = self._ymin
+        return bound_x, bound_y
 
     def compute_delaunay(self):
         # TODO document
@@ -227,7 +237,7 @@ class DelVor:
             # assign nodes
             self._nodes = {idx: circum[0] for idx, circum in self._triangles.items()}
             # assign links
-            self._scale = 0.1 * np.sqrt(
+            self._scale = 0.1 * math.sqrt(
                 (self._xmax - self._xmin) ** 2 + (self._ymax - self._ymin) ** 2
             )
             self._links = []
@@ -238,7 +248,7 @@ class DelVor:
                     self._links.append(tuple(triangles))
                 elif len(triangles) == 1:
                     # outer edges
-                    self._exension_arrow(edge=edge, triangle=triangles[0])
+                    self._extension_arrow(edge=edge, triangle=triangles[0])
                 else:
                     err = [
                         f"Edge {edge} pertains to {len(triangles)} triangles.",
@@ -299,9 +309,7 @@ class DelVor:
 
         # extend arrows
         for arrow in arrows:
-            boundary_x, boundary_y = self._boundary_arrow(
-                node=arrow[0], vector=arrow[1]
-            )
-            edges_voronoi.append((arrow[0], (boundary_x, boundary_y)))
+            bounds = self._boundary_arrow(node=arrow[0], vector=arrow[1])
+            edges_voronoi.append((arrow[0], bounds))
 
         return points_delaunay, edges_delaunay, points_voronoi, tuple(edges_voronoi)
