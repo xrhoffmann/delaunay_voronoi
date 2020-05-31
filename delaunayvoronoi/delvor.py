@@ -229,6 +229,28 @@ class DelVor:
             else:
                 return bound_x, self._ymin
 
+    def _meta_position(self, *, node: Tuple[float, float]) -> Tuple[int, int]:
+        """Compute meta-position of exterior node.
+
+        Args:
+            node: Coordinates (x, y) of node.
+
+        Returns:
+            meta_pos_x: Meta-position x-coordinate.
+            meta_pos_y: Meta-position y-coordinate.
+        """
+        meta_pos_x = 0
+        if node[0] < self._xmin:
+            meta_pos_x = -1
+        if node[0] > self._xmax:
+            meta_pos_x = 1
+        meta_pos_y = 0
+        if node[1] < self._ymin:
+            meta_pos_y = -1
+        if node[1] > self._ymax:
+            meta_pos_y = 1
+        return meta_pos_x, meta_pos_y
+
     @staticmethod
     def euclidean_distance(p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
         """Euclidean distance between two points.
@@ -328,15 +350,13 @@ class DelVor:
         Tuple[Tuple[Tuple[int, int, int], Tuple[int, int, int]], ...],
         Tuple[Tuple[Tuple[int, int, int], Tuple[float, float]], ...],
     ]:
-        # TODO adapt docstring
         """Voronoi tessellation.
 
         Returns:
             nodes: Triangle id (key) and circumcentre coordinates
                 (value), in form (x, y).
             links: Pairs of connectes triangles.
-            arrows: Triangle id (key), and outward vector (value), in
-                form (v_x, v_y).
+            arrows: Tuples of triangle id and outward vector.
 
         Raises:
             ValueError: If an edge is found to pertain to none or > 3
@@ -410,7 +430,7 @@ class DelVor:
         )
 
         # tessellation
-        # separate interior and exterior nodes
+        # separate interior from exterior nodes
         int_nodes = {
             triangle: center
             for triangle, center in self._nodes.items()
@@ -422,14 +442,15 @@ class DelVor:
             for triangle, center in self._nodes.items()
             if triangle in set(self._nodes.keys()).difference(set(int_nodes.keys()))
         }
+        # only interior points
         points_voronoi = tuple(int_nodes.values())
 
-        #
+        # edges
         edges_voronoi = []
         for link in self._links:
             if link[0] in ext_nodes:
                 if link[1] not in ext_nodes:
-                    # one interior and one exterior
+                    # one interior node and one exterior node
                     vx = self._nodes[link[0]][0] - self._nodes[link[1]][0]
                     vy = self._nodes[link[0]][1] - self._nodes[link[1]][1]
                     bounds = self._boundary_arrow(
@@ -437,11 +458,19 @@ class DelVor:
                     )
                     edges_voronoi.append((self._nodes[link[1]], bounds))
                 else:
-                    # both exterior
-                    pass
-
+                    # two exterior nodes
+                    node1 = self._nodes[link[0]]
+                    node2 = self._nodes[link[1]]
+                    pox1, poy1 = self._meta_position(node=node1)
+                    pox2, poy2 = self._meta_position(node=node2)
+                    delta = abs(pox2 - pox1) + abs(poy2 - poy1)
+                    if delta >= 2:
+                        vector = (node2[0] - node1[0], node2[1] - node1[1])
+                        cross_left = self._left_boundary(node=node1, vector=vector)
+                        cross_right = self._right_boundary(node=node1, vector=vector)
+                        edges_voronoi.append((cross_left, cross_right))
             elif link[1] in ext_nodes:
-                # one interior and one exterior
+                # one interior node and one exterior node
                 vx = self._nodes[link[1]][0] - self._nodes[link[0]][0]
                 vy = self._nodes[link[1]][1] - self._nodes[link[0]][1]
                 bounds = self._boundary_arrow(
@@ -449,7 +478,7 @@ class DelVor:
                 )
                 edges_voronoi.append((self._nodes[link[0]], bounds))
             else:
-                # both interior
+                # two interior nodes
                 edges_voronoi.append((self._nodes[link[0]], self._nodes[link[1]]))
 
         # extend arrows
