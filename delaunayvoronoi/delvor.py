@@ -144,7 +144,7 @@ class DelVor:
                     if count == 1
                 ]
                 for triangle in new_triangles:
-                    self._triangles[triangle] = self._circumference(triangle)
+                    self._triangles[triangle] = self._circumference(triangle=triangle)
 
             # remove super vertices
             for vertex in super_vertices:
@@ -206,8 +206,7 @@ class DelVor:
                     # invert direction?
                     v3x = self._vertices[v3][0] - x0
                     v3y = self._vertices[v3][1] - y0
-                    mod3 = np.sqrt(v3x ** 2 + v3y ** 2)
-                    cosine = (vcx * v3x + vcy * v3y) / (scale * mod3)
+                    cosine = vcx * v3x + vcy * v3y
                     if cosine > 0:
                         vcx *= -1
                         vcy *= -1
@@ -223,3 +222,49 @@ class DelVor:
             self._tessellation = 1
 
         return self._nodes, set(self._links), self._arrows
+
+    def prepare_plot(self):
+        """Compute coordinates for plotting."""
+        if self._tessellation is None:
+            _, _, _ = self.compute_voronoi()
+
+        # triangulation
+        points_delaunay = tuple(self._vertices.values())
+        edges_delaunay = tuple(
+            (self._vertices[edge[0]], self._vertices[edge[1]]) for edge in self._edges
+        )
+
+        # tessellation
+        int_nodes = {
+            triangle: center
+            for triangle, center in self._nodes.items()
+            if self._xmin <= center[0] <= self._xmax
+            and self._ymin <= center[1] <= self._ymax
+        }
+        ext_nodes = {
+            triangle: center
+            for triangle, center in self._nodes.items()
+            if triangle in set(self._nodes.keys()).difference(set(int_nodes.keys()))
+        }
+        points_voronoi = tuple(int_nodes.values())
+
+        edges_voronoi = []
+        arrows = [
+            (self._nodes[node], vector)
+            for node, vector in self._arrows.items()
+            if node in int_nodes
+        ]
+        for link in self._links:
+            if link[0] in ext_nodes:
+                vx = self._nodes[link[0]][0] - self._nodes[link[1]][0]
+                vy = self._nodes[link[0]][1] - self._nodes[link[1]][1]
+                arrows.append((self._nodes[link[1]], (vx, vy)))
+            elif link[1] in ext_nodes:
+                vx = self._nodes[link[1]][0] - self._nodes[link[0]][0]
+                vy = self._nodes[link[1]][1] - self._nodes[link[0]][1]
+                arrows.append((self._nodes[link[0]], (vx, vy)))
+            else:
+                # interior node
+                edges_voronoi.append((self._nodes[link[0]], self._nodes[link[1]]))
+
+        return points_delaunay, edges_delaunay, points_voronoi, tuple(edges_voronoi)
