@@ -131,14 +131,12 @@ class DelVor:
 
         Args:
             edge: Edge, in form (v1, v2).
-            triangle: Vertices of triangle, in form (v1, v2, v3) (or
-                other order).
+            triangle: Triangle vertices (v1, v2, v3) (order irrelevant).
 
         Returns:
             vcx: Outward vector, x-component.
             vcy: Outward vector, y-component.
         """
-        # TODO document
         v1, v2 = edge
         v3 = [x for x in triangle if x not in edge][0]
 
@@ -161,46 +159,75 @@ class DelVor:
             vcy *= -1
         return vcx, vcy
 
+    def _left_boundary(
+        self, *, node: Tuple[float, float], vector: Tuple[float, float]
+    ) -> Tuple[float, float]:
+        """Intersection with left boundary.
+
+        Args:
+            node: Coordinates (x, y) of point.
+            vector: Components (v_x, v_y) of direction vector.
+
+        Returns:
+            Coordinates (x, y) of intersection with left boundary.
+        """
+        bound_x = self._xmin
+        bound_y = node[1] + (bound_x - node[0]) * vector[1] / vector[0]
+        if bound_y < self._ymin:
+            bound_y = self._ymin
+            bound_x = node[0] + (bound_y - node[1]) * vector[0] / vector[1]
+        elif bound_y > self._ymax:
+            bound_y = self._ymax
+            bound_x = node[0] + (bound_y - node[1]) * vector[0] / vector[1]
+        return bound_x, bound_y
+
+    def _right_boundary(
+        self, *, node: Tuple[float, float], vector: Tuple[float, float]
+    ) -> Tuple[float, float]:
+        """Intersection with right boundary.
+
+        Args:
+            node: Coordinates (x, y) of point.
+            vector: Components (v_x, v_y) of direction vector.
+
+        Returns:
+            Coordinates (x, y) of intersection with right boundary.
+        """
+        bound_x = self._xmax
+        bound_y = node[1] + (bound_x - node[0]) * vector[1] / vector[0]
+        if bound_y < self._ymin:
+            bound_y = self._ymin
+            bound_x = node[0] + (bound_y - node[1]) * vector[0] / vector[1]
+        elif bound_y > self._ymax:
+            bound_y = self._ymax
+            bound_x = node[0] + (bound_y - node[1]) * vector[0] / vector[1]
+        return bound_x, bound_y
+
     def _boundary_arrow(
         self, *, node: Tuple[float, float], vector: Tuple[float, float]
     ) -> Tuple[float, float]:
         """Extend arrows to bounding box.
 
         Args:
-            node: Coordinates of circumcentre, in form (x, y).
-            vector: Outward vector, in form (v_x, v_y).
+            node: Coordinates (x, y) of circumcentre.
+            vector: Outward vector (v_x, v_y).
 
         Returns:
-            Coordinates of intersection with boundaries, in form (x, y).
+            Coordinates (x, y) of intersection with boundaries.
         """
         if vector[0] < 0:
             # left boundary
-            bound_x = self._xmin
-            bound_y = node[1] + (bound_x - node[0]) * vector[1] / vector[0]
-            if bound_y < self._ymin:
-                bound_y = self._ymin
-                bound_x = node[0] + (bound_y - node[1]) * vector[0] / vector[1]
-            elif bound_y > self._ymax:
-                bound_y = self._ymax
-                bound_x = node[0] + (bound_y - node[1]) * vector[0] / vector[1]
+            return self._left_boundary(node=node, vector=vector)
         elif vector[0] > 0:
             # right boundary
-            bound_x = self._xmax
-            bound_y = node[1] + (bound_x - node[0]) * vector[1] / vector[0]
-            if bound_y < self._ymin:
-                bound_y = self._ymin
-                bound_x = node[0] + (bound_y - node[1]) * vector[0] / vector[1]
-            elif bound_y > self._ymax:
-                bound_y = self._ymax
-                bound_x = node[0] + (bound_y - node[1]) * vector[0] / vector[1]
+            return self._right_boundary(node=node, vector=vector)
         else:
             # vertical line
             bound_x = node[0]
             if vector[1] > 0:
-                bound_y = self._ymax
+                return bound_x, self._ymax
             else:
-                bound_y = self._ymin
-        return bound_x, bound_y
+                return bound_x, self._ymin
 
     @staticmethod
     def euclidean_distance(p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
@@ -299,8 +326,9 @@ class DelVor:
     ) -> Tuple[
         Dict[Tuple[int, int, int], Tuple[float, float]],
         Tuple[Tuple[Tuple[int, int, int], Tuple[int, int, int]], ...],
-        Dict[Tuple[int, int, int], Tuple[float, float]],
+        Tuple[Tuple[Tuple[int, int, int], Tuple[float, float]], ...],
     ]:
+        # TODO adapt docstring
         """Voronoi tessellation.
 
         Returns:
@@ -322,7 +350,7 @@ class DelVor:
             self._nodes = {idx: circum[0] for idx, circum in self._triangles.items()}
             # assign links
             self._links = []
-            self._arrows = {}
+            self._arrows = []
             for edge, triangles in self._edges.items():
                 if len(triangles) == 2:
                     # interior edges
@@ -330,7 +358,7 @@ class DelVor:
                 elif len(triangles) == 1:
                     # outer edges
                     vcx, vcy = self._arrow_vector(edge=edge, triangle=triangles[0])
-                    self._arrows[triangles[0]] = (vcx, vcy)
+                    self._arrows.append((triangles[0], (vcx, vcy)))
                 else:
                     err = [
                         f"Edge {edge} pertains to {len(triangles)} triangles.",
@@ -341,7 +369,7 @@ class DelVor:
             # assign tessellation
             self._tessellation = True
 
-        return self._nodes, (*self._links,), self._arrows
+        return self._nodes, tuple(self._links), tuple(self._arrows)
 
     def prepare_plot(
         self, bbox: Tuple[Tuple[float, float], Tuple[float, float]] = None
@@ -396,29 +424,39 @@ class DelVor:
         }
         points_voronoi = tuple(int_nodes.values())
 
-        # add interior edges and list pending arrows
+        #
         edges_voronoi = []
-        arrows = [
-            (self._nodes[node], vector)
-            for node, vector in self._arrows.items()
-            if node in int_nodes
-        ]
         for link in self._links:
             if link[0] in ext_nodes:
-                vx = self._nodes[link[0]][0] - self._nodes[link[1]][0]
-                vy = self._nodes[link[0]][1] - self._nodes[link[1]][1]
-                arrows.append((self._nodes[link[1]], (vx, vy)))
+                if link[1] not in ext_nodes:
+                    # one interior and one exterior
+                    vx = self._nodes[link[0]][0] - self._nodes[link[1]][0]
+                    vy = self._nodes[link[0]][1] - self._nodes[link[1]][1]
+                    bounds = self._boundary_arrow(
+                        node=self._nodes[link[1]], vector=(vx, vy)
+                    )
+                    edges_voronoi.append((self._nodes[link[1]], bounds))
+                else:
+                    # both exterior
+                    pass
+
             elif link[1] in ext_nodes:
+                # one interior and one exterior
                 vx = self._nodes[link[1]][0] - self._nodes[link[0]][0]
                 vy = self._nodes[link[1]][1] - self._nodes[link[0]][1]
-                arrows.append((self._nodes[link[0]], (vx, vy)))
+                bounds = self._boundary_arrow(
+                    node=self._nodes[link[0]], vector=(vx, vy)
+                )
+                edges_voronoi.append((self._nodes[link[0]], bounds))
             else:
-                # interior node
+                # both interior
                 edges_voronoi.append((self._nodes[link[0]], self._nodes[link[1]]))
 
         # extend arrows
-        for arrow in arrows:
-            bounds = self._boundary_arrow(node=arrow[0], vector=arrow[1])
-            edges_voronoi.append((arrow[0], bounds))
+        for arrow in self._arrows:
+            node, vector = arrow
+            if node in int_nodes:
+                bounds = self._boundary_arrow(node=self._nodes[node], vector=vector)
+                edges_voronoi.append((self._nodes[node], bounds))
 
         return points_delaunay, edges_delaunay, points_voronoi, tuple(edges_voronoi)
