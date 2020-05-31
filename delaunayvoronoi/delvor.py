@@ -4,6 +4,7 @@
 """
 
 from collections import Counter, defaultdict
+from typing import Sequence, Tuple
 
 import numpy as np
 
@@ -12,7 +13,9 @@ class DelVor:
     # TODO document
     """Compute triangulation and/or tessellation."""
 
-    def __init__(self, *, x, y, buffer=1):
+    def __init__(
+        self, *, x: Sequence[float], y: Sequence[float], buffer: float = 1
+    ) -> None:
         # TODO document
         """Constructor."""
         if len(x) != len(y):
@@ -30,11 +33,11 @@ class DelVor:
             self._triangulation = None
             self._tessellation = None
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Representation."""
         return f"DelVor({len(self.coord)} points)"
 
-    def _compute_bbox(self):
+    def _compute_bbox(self) -> None:
         """Construct bounding box."""
         x, y = zip(*self.coord)
         self._xmin = min(x) - self.buffer
@@ -42,7 +45,7 @@ class DelVor:
         self._xmax = max(x) + self.buffer
         self._ymax = max(y) + self.buffer
 
-    def _make_supertriangle(self):
+    def _make_supertriangle(self) -> None:
         """Create vertices of supertriangle."""
         self._vertices = {
             -3: (self._xmin - (self._ymax - self._ymin), self._ymin),
@@ -53,18 +56,18 @@ class DelVor:
             ),
         }
 
-    def _bisector(self, *, v1, v2):
+    def _bisector(self, *, v1: int, v2: int) -> Tuple[float, float, float, float]:
         """Compute bisecting line between two vertices."""
         px = 0.5 * (self._vertices[v2][0] + self._vertices[v1][0])
         py = 0.5 * (self._vertices[v2][1] + self._vertices[v1][1])
         vx = self._vertices[v1][0] - self._vertices[v2][0]
         vy = self._vertices[v1][1] - self._vertices[v2][1]
         mod = np.sqrt(vx ** 2 + vy ** 2)
-        vx /= mod
-        vy /= mod
-        return px, py, vy, -vx
+        return px, py, vy / mod, -vx / mod
 
-    def _circumference(self, triangle):
+    def _circumference(
+        self, *, triangle: Tuple[int, int, int]
+    ) -> Tuple[Tuple[float, float], float]:
         """Compute circumcircle of a triangle."""
         line1 = self._bisector(v1=triangle[0], v2=triangle[1])
         line2 = self._bisector(v1=triangle[0], v2=triangle[2])
@@ -90,7 +93,7 @@ class DelVor:
         return (x0, y0), radius
 
     @staticmethod
-    def euclidean_distance(p1, p2):
+    def euclidean_distance(p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
         """Euclidean distance between two points."""
         d = (p1[0] - p2[0]) ** 2 + (p2[1] - p1[1]) ** 2
         return np.sqrt(d)
@@ -111,8 +114,8 @@ class DelVor:
             # add first vertex
             self._vertices[0] = self.coord[0]
             self._triangles = {}
-            for tr in [(-3, -2, 0), (-3, -1, 0), (-2, -1, 0)]:
-                self._triangles[tr] = self._circumference(tr)
+            for triangle in [(-3, -2, 0), (-3, -1, 0), (-2, -1, 0)]:
+                self._triangles[triangle] = self._circumference(triangle=triangle)
 
             # iterate over all vertices
             for i, vertex_coord in enumerate(self.coord[1:]):
