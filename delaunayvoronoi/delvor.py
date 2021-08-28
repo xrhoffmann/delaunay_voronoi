@@ -359,7 +359,7 @@ class DelVor:
             arrows: Tuples of triangle id and outward vector.
 
         Raises:
-            ValueError: If an edge is found to pertain to none or > 3
+            ValueError: If an edge is found to pertain to none or >= 3
                 triangles.
         """
         if not self._triangulation:
