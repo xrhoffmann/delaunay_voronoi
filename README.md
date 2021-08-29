@@ -1,4 +1,6 @@
 # delaunay_voronoi
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
 Delaunay triangulation and Voronoi tessellation in Python.
 
 2020, Xavier R. Hoffmann <xrhoffmann@gmail.com>
@@ -16,7 +18,7 @@ additional **arrows** pointing outward.
 
 We only use core Python. The examples use `matplotlib` for plotting.
 
-Coordinates and distances are assumed Euclidean. Algorithm and implementation details can be found in XXX.
+Coordinates and distances are assumed Euclidean.
 
 ## Usage
 * Initialize an instance of the `DelVor` class with the `x` and `y` coordinates.
