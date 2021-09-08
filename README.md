@@ -5,7 +5,7 @@ Delaunay triangulation and Voronoi tessellation in Python.
 
 2020, Xavier R. Hoffmann <xrhoffmann@gmail.com>
 
-This repository is licensed under MIT license.
+This repository is licensed under the MIT License.
 
 ## Basics
 
