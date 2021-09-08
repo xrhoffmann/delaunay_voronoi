@@ -5,6 +5,8 @@ Delaunay triangulation and Voronoi tessellation in Python.
 
 2020, Xavier R. Hoffmann <xrhoffmann@gmail.com>
 
+This repository is licensed under MIT license.
+
 ## Basics
 
 Given a set of points in an Euclidean 2D space, we compute the [Delaunay triangulation](https://en.wikipedia.org/wiki/Delaunay_triangulation) (DT)
